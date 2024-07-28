@@ -1,0 +1,6 @@
+usertrap() called syscall
+Prototypes of syscall, pass type of syscall
+user mode
+lw a3,0(zero), a7 register
+Illegal memory, address 0 is not mapped in the kernel address space, yes
+initcode, 1
