@@ -67,6 +67,23 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+    
+    if (which_dev == 2) {
+      // sigalarm
+      if (p->alarmticks > 0 && ticks - p->lastticks >= p->alarmticks &&p->alarmtrapframe == 0) {
+        // save context
+        if((p->alarmtrapframe = (struct trapframe *)kalloc()) == 0){
+          printf("usertrap(): cannot allocate alarmtrapframe\n");
+          setkilled(p);
+          return;
+        }
+        memmove(p->alarmtrapframe, p->trapframe, sizeof(struct trapframe));
+
+        // call handler
+        p->lastticks = ticks;
+        p->trapframe->epc = p->alarmhandler;
+      }
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

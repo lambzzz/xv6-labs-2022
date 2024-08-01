@@ -1,0 +1,6 @@
+a0-a7, a0
+no call but direct result 12 in assembly code because compiler optimize them as inline functions
+0x642
+0x38
+He110 World， i need to change 0x726c6400
+x=3 y=<randomvalue>, because function didn't provide enough arguements, func read a undefind value from a2 register
