@@ -29,6 +29,29 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+void copy_on_write(pte_t *pte){
+  char *pa = (char*)PTE2PA(*pte);
+  uint flags = PTE_FLAGS(*pte);
+  char *mem;
+
+  if (page_refcnt[((uint64)pa - KERNBASE) / PGSIZE] == 1){
+    flags |= PTE_W;
+    flags &= ~PTE_COW;
+    *pte = PA2PTE((uint64)pa) | flags;
+  } else {
+    if((mem = kalloc()) == 0){
+      printf("usertrap(): out of memory\n");
+      setkilled(myproc());
+      exit(-1);
+    }
+    flags |= PTE_W;
+    flags &= ~PTE_COW;
+    memmove(mem, (char*)pa, PGSIZE);
+    *pte = PA2PTE((uint64)mem) | flags;
+    kfree(pa);
+  }
+}
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -49,6 +72,9 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
+
+  pte_t *pte;
+  uint64 stval = r_stval();
   
   if(r_scause() == 8){
     // system call
@@ -67,6 +93,11 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == SCAUSE_STORE_AMO_PAGE_FAULT && 
+             stval < MAXVA &&
+             (pte = walk(p->pagetable, stval, 0)) && 
+             (*pte & PTE_COW)){
+    copy_on_write(pte);
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

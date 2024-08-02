@@ -60,6 +60,7 @@ void            ramdiskintr(void);
 void            ramdiskrw(struct buf*);
 
 // kalloc.c
+extern int page_refcnt[];
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
@@ -147,6 +148,7 @@ void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
 void            usertrapret(void);
+void            copy_on_write(pte_t *pte);
 
 // uart.c
 void            uartinit(void);

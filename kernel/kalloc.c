@@ -23,6 +23,9 @@ struct {
   struct run *freelist;
 } kmem;
 
+// Page reference count for COW
+int page_refcnt[(PHYSTOP-KERNBASE)/PGSIZE] = {0};
+
 void
 kinit()
 {
@@ -47,9 +50,19 @@ void
 kfree(void *pa)
 {
   struct run *r;
+  int cnt;
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
+
+  // For COW pages
+  // acquire(&kmem.lock);
+  page_refcnt[((uint64)pa - KERNBASE) / PGSIZE]--;
+  cnt = page_refcnt[((uint64)pa - KERNBASE) / PGSIZE];
+  // release(&kmem.lock);
+  if (cnt > 0) {
+    return;
+  }
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -76,7 +89,12 @@ kalloc(void)
     kmem.freelist = r->next;
   release(&kmem.lock);
 
-  if(r)
+  if(r){
     memset((char*)r, 5, PGSIZE); // fill with junk
+    
+    // Initialize page reference count to 1
+    page_refcnt[((uint64)r - KERNBASE) / PGSIZE] = 1;
+  }
+
   return (void*)r;
 }

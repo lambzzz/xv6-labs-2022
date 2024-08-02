@@ -223,6 +223,14 @@ w_mscratch(uint64 x)
   asm volatile("csrw mscratch, %0" : : "r" (x));
 }
 
+#define SCAUSE_LOAD_ADDRESS_MISALIGNED 0x0000000000000004
+#define SCAUSE_LOAD_ACCESS_FAULT       0x0000000000000005
+#define SCAUSE_STORE_AMO_ADDRESS_MISALIGNED 0x0000000000000006
+#define SCAUSE_STORE_AMO_ACCESS_FAULT  0x0000000000000007
+#define SCAUSE_INSTRUCTION_PAGE_FAULT  0x000000000000000c
+#define SCAUSE_LOAD_PAGE_FAULT         0x000000000000000d
+#define SCAUSE_STORE_AMO_PAGE_FAULT    0x000000000000000f
+
 // Supervisor Trap Cause
 static inline uint64
 r_scause()
@@ -343,6 +351,11 @@ typedef uint64 *pagetable_t; // 512 PTEs
 #define PTE_W (1L << 2)
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4) // user can access
+#define PTE_G (1L << 5) // global
+#define PTE_A (1L << 6) // accessed
+#define PTE_D (1L << 7) // dirty
+#define PTE_COW (1L << 8) // Copy On Write, Reserved for Software 1
+#define PTE_RSW2 (1L << 9) // Reserved for Software 2
 
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
