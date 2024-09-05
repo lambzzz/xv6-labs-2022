@@ -102,7 +102,40 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
-  
+  acquire(&e1000_lock);
+
+  // 获取当前的传输描述符索引
+  int tx_ring_index = regs[E1000_TDT];
+
+  // 获取当前传输描述符
+  struct tx_desc *desc = &tx_ring[tx_ring_index];
+
+  // 检查描述符是否已被处理
+  if (!(desc->status & E1000_TXD_STAT_DD)) {
+    // 描述符未被处理，返回错误
+    release(&e1000_lock);
+    return -1;
+  }
+
+  // 释放之前的 mbuf
+  if (tx_mbufs[tx_ring_index]) {
+    mbuffree(tx_mbufs[tx_ring_index]);
+  }
+
+  // 填充传输描述符
+  desc->addr = (uint64)m->head; // 数据包缓冲区的物理地址
+  desc->length = m->len;
+  desc->cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS;
+  desc->status = 0;
+
+  // 保存 mbuf
+  tx_mbufs[tx_ring_index] = m;
+
+  // 更新 TDT 索引
+  tx_ring_index = (tx_ring_index + 1) % TX_RING_SIZE;
+  regs[E1000_TDT] = tx_ring_index;
+
+  release(&e1000_lock);
   return 0;
 }
 
@@ -115,6 +148,38 @@ e1000_recv(void)
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
+  // acquire(&e1000_lock);
+
+  // 获取当前的接收描述符索引
+  int rx_ring_index = regs[E1000_RDT];
+
+  while (1){
+    rx_ring_index = (rx_ring_index + 1) % RX_RING_SIZE;
+
+    // 获取当前接收描述符
+    struct rx_desc *desc = &rx_ring[rx_ring_index];
+
+    // 检查描述符是否已被处理
+    if (!(desc->status & E1000_RXD_STAT_DD)) {
+      // 描述符未被处理，返回
+      break;
+    }
+    
+    // 更新长度并将mbuf传递到网络栈
+    rx_mbufs[rx_ring_index]->len = desc->length;
+    net_rx(rx_mbufs[rx_ring_index]);
+
+    // 重置mubf和描述符
+    rx_mbufs[rx_ring_index] = mbufalloc(0);
+    if (!rx_mbufs[rx_ring_index])
+      panic("e1000");
+    desc->addr = (uint64)rx_mbufs[rx_ring_index]->head;
+    desc->status = 0;
+
+    // 更新 RDT 索引
+    regs[E1000_RDT] = rx_ring_index;
+  }
+  // release(&e1000_lock);
 }
 
 void
